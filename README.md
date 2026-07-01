@@ -2,13 +2,13 @@
 
 Use the Antigravity `agy` CLI from Codex for external code review, adversarial review, and rescue-style investigation.
 
-This plugin mirrors the shape of Claude Bridge, but routes work through `agy`.
+This plugin is for Codex users who want a convenient way to ask the local Antigravity CLI for an independent pass without leaving the repository they are already working in.
 
 ## What You Get
 
 - `$review` for a normal read-only Antigravity review.
-- `$adversarial-review` for a challenge review that pressure-tests implementation direction, assumptions, and failure modes.
-- `$rescue` for investigation, debugging, fix planning, or an explicitly requested constrained fix.
+- `$adversarial-review` for a challenge review that pressure-tests the implementation approach, design choices, assumptions, and failure modes.
+- `$rescue` for Antigravity-assisted investigation, debugging, fix planning, or an explicitly requested constrained fix.
 
 ## Requirements
 
@@ -27,17 +27,70 @@ node .\scripts\antigravity-bridge.mjs setup --json
 
 ## Install
 
-Register this folder through a local Codex marketplace. The plugin manifest is:
+Clone the plugin into your personal Codex plugin folder:
 
-```text
-.codex-plugin/plugin.json
+```powershell
+mkdir $HOME\plugins -Force
+git clone https://github.com/dydtjr1128/antigravity-bridge.git $HOME\plugins\antigravity-bridge
 ```
 
-For the default personal marketplace on Windows, keep the plugin source reachable from `C:\Users\<you>\plugins\antigravity-bridge` and add a marketplace entry named `antigravity-bridge` that points to `./plugins/antigravity-bridge`. Then install it with:
+Add it to your personal Codex marketplace at `~/.agents/plugins/marketplace.json`. If you already have a personal marketplace file, add this object to its `plugins` array:
+
+```json
+{
+  "name": "antigravity-bridge",
+  "source": {
+    "source": "local",
+    "path": "./plugins/antigravity-bridge"
+  },
+  "policy": {
+    "installation": "AVAILABLE",
+    "authentication": "ON_INSTALL"
+  },
+  "category": "Productivity"
+}
+```
+
+If you do not have a personal marketplace file yet, create one:
+
+```json
+{
+  "name": "personal",
+  "interface": {
+    "displayName": "Personal"
+  },
+  "plugins": [
+    {
+      "name": "antigravity-bridge",
+      "source": {
+        "source": "local",
+        "path": "./plugins/antigravity-bridge"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
+```
+
+Install the plugin:
 
 ```powershell
 codex plugin add antigravity-bridge@personal
 ```
+
+Then start a new Codex thread so the plugin skills are loaded.
+
+Run the setup check:
+
+```powershell
+node $HOME\plugins\antigravity-bridge\scripts\antigravity-bridge.mjs setup
+```
+
+The setup check verifies that the local Antigravity CLI is installed and able to return a non-empty final response.
 
 After installation, Codex should expose these skills:
 
@@ -47,7 +100,15 @@ $adversarial-review
 $rescue
 ```
 
+One simple first run is:
+
+```text
+Use $review to ask Antigravity to review my local changes.
+```
+
 ## Usage
+
+Antigravity Bridge includes a small companion script inspired by the helper-runtime pattern in `openai/codex-plugin-cc`.
 
 ```powershell
 node .\scripts\antigravity-bridge.mjs setup
@@ -58,9 +119,18 @@ node .\scripts\antigravity-bridge.mjs rescue --scope "the failing parser test"
 
 The helper normalizes model names, stores prompts/logs/results, and keeps reviewer prompts consistent.
 
-## Models
+## Model Selection
 
-Known Antigravity model labels:
+Antigravity Bridge normalizes common shorthand before calling `agy`:
+
+- `flash`, `flash-medium`, or `gemini-3-5-flash-medium` -> `Gemini 3.5 Flash (Medium)`
+- `flash-high` or `gemini-3-5-flash-high` -> `Gemini 3.5 Flash (High)`
+- `pro`, `pro-high`, or `gemini-3-1-pro-high` -> `Gemini 3.1 Pro (High)`
+- `sonnet`, `sonnet-4-6`, or `claude-sonnet-4-6` -> `Claude Sonnet 4.6 (Thinking)`
+- `opus`, `opus-4-6`, or `claude-opus-4-6` -> `Claude Opus 4.6 (Thinking)`
+- `gpt-oss` or `gpt-oss-120b` -> `GPT-OSS 120B (Medium)`
+
+Known Antigravity model labels include:
 
 - `Gemini 3.5 Flash (Medium)` default for ordinary reviews.
 - `Gemini 3.5 Flash (High)` for stronger routine challenge reviews.
