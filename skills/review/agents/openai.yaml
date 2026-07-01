@@ -1,0 +1,4 @@
+interface:
+  display_name: "Antigravity Review"
+  short_description: "Ask agy CLI for a read-only review"
+  default_prompt: "Use $review to ask Antigravity to review my local changes."

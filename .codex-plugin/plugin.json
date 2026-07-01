@@ -1,0 +1,37 @@
+{
+  "name": "antigravity-bridge",
+  "version": "0.1.0",
+  "description": "Bridge from Codex and other agents to the Antigravity CLI for review, adversarial review, and rescue passes.",
+  "author": {
+    "name": "Local developer",
+    "email": "dydtjr1128@gmail.com",
+    "url": "https://github.com/dydtjr1128"
+  },
+  "homepage": "https://github.com/dydtjr1128/antigravity-bridge",
+  "repository": "https://github.com/dydtjr1128/antigravity-bridge.git",
+  "keywords": [
+    "antigravity",
+    "agy",
+    "gemini",
+    "review",
+    "external-review",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Antigravity Bridge",
+    "shortDescription": "Use agy CLI for external passes.",
+    "longDescription": "Antigravity Bridge provides Codex skills that call the local agy CLI for ordinary reviews, adversarial challenge reviews, and rescue-style investigation or follow-up work. It keeps review runs read-only, normalizes Antigravity model names, and extracts final answers from Antigravity transcript logs when print mode does not write stdout.",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [
+      "Review",
+      "Analysis"
+    ],
+    "defaultPrompt": [
+      "Ask Antigravity to review my local changes.",
+      "Ask Antigravity for an adversarial review of this diff.",
+      "Ask Antigravity to rescue this failing investigation."
+    ]
+  }
+}

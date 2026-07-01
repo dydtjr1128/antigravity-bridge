@@ -1,0 +1,4 @@
+interface:
+  display_name: "Antigravity Rescue"
+  short_description: "Ask agy CLI for investigation or fix planning"
+  default_prompt: "Use $rescue to ask Antigravity to investigate this failure."

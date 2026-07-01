@@ -1,0 +1,4 @@
+interface:
+  display_name: "Antigravity Adversarial Review"
+  short_description: "Ask agy CLI for a challenge review"
+  default_prompt: "Use $adversarial-review to ask Antigravity to challenge my local changes."
