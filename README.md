@@ -25,6 +25,28 @@ node .\scripts\antigravity-bridge.mjs setup --json
 
 `agy --print` can exit 0 while printing no stdout. The helper treats the transcript final `content` as the review result and ignores transcript `thinking` fields. The setup check is successful when `agy --version` works and a non-empty final response can be extracted.
 
+## Install
+
+Register this folder through a local Codex marketplace. The plugin manifest is:
+
+```text
+.codex-plugin/plugin.json
+```
+
+For the default personal marketplace on Windows, keep the plugin source reachable from `C:\Users\<you>\plugins\antigravity-bridge` and add a marketplace entry named `antigravity-bridge` that points to `./plugins/antigravity-bridge`. Then install it with:
+
+```powershell
+codex plugin add antigravity-bridge@personal
+```
+
+After installation, Codex should expose these skills:
+
+```text
+$review
+$adversarial-review
+$rescue
+```
+
 ## Usage
 
 ```powershell
@@ -55,6 +77,14 @@ Default policy:
 - Use `Gemini 3.5 Flash (High)` for default adversarial review.
 - Use `Gemini 3.1 Pro (High)` with `--deep` for high-risk or complex reviews.
 - Use Claude Opus or other expensive models only when explicitly requested or when a final tie-breaker is warranted.
+
+Smoke-test any model label with:
+
+```powershell
+node .\scripts\antigravity-bridge.mjs setup --model "Gemini 3.5 Flash (Medium)" --json
+```
+
+The initial `1.0.0` release smoke-tested every model label listed above with `agy` print mode and transcript extraction.
 
 ## Safety Rules
 

@@ -1,6 +1,6 @@
 {
   "name": "antigravity-bridge",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Bridge from Codex and other agents to the Antigravity CLI for review, adversarial review, and rescue passes.",
   "author": {
     "name": "Local developer",
