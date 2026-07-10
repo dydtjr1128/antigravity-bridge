@@ -7,24 +7,21 @@ description: Use when Codex should ask the Antigravity agy CLI for an independen
 
 Use the local `agy` executable as an external reviewer. Treat Antigravity output as advisory and verify findings against the repository before editing or reporting them as true.
 
-## Preflight
+## Execution and Time Policy
 
-Check the CLI and run a real print-mode smoke test through the helper:
+Do not execute programs unless the user explicitly and directly requests that execution. This includes tests, builds, package managers, scripts, servers, applications, CI, deployment, release, and workflow automation. A review or investigation request alone is not permission to execute them.
+Complete one bounded pass within five minutes.
+Do not retry, add reviewers, expand the scope, or switch to a deeper model automatically.
+If the available time or evidence is insufficient, return the supported findings and state the remaining gap.
 
-```powershell
-Get-Command agy -ErrorAction SilentlyContinue
-agy --version
-node .\scripts\antigravity-bridge.mjs setup --json
-```
-
-`agy models` can return no visible output even when the CLI is usable. Use the helper setup check as the readiness gate because it verifies `agy --version` and extracts a non-empty final response from Antigravity transcript logs.
+Use static file and line inspection only by default. `setup` remains available as an explicit diagnostic command, but run it or otherwise validate the `agy` executable only when the user explicitly requests executable validation.
 
 ## Model Selection
 
-- Use `Gemini 3.5 Flash (Medium)` by default for ordinary reviews, smoke checks, and broad multi-review coverage.
-- Use `Gemini 3.5 Flash (High)` for stronger routine challenge reviews.
-- Use `Gemini 3.1 Pro (High)` with `--deep` for high-risk security, data loss, migrations, concurrency, rollback, idempotency, or complex architecture.
-- Use `Claude Opus 4.6 (Thinking)` or other expensive models only when the user explicitly asks or when a final tie-breaker is warranted.
+- Use `Gemini 3.5 Flash (Medium)` by default for ordinary reviews.
+- Use `Gemini 3.5 Flash (High)` only when the user explicitly requests that model.
+- Use `Gemini 3.1 Pro (High)` with `--deep` only with explicit user intent for a deeper review.
+- Use `Claude Opus 4.6 (Thinking)` or any additional provider only with explicit user intent.
 
 ## Review Prompt
 
@@ -34,8 +31,11 @@ Use this shape and preserve the user's scope:
 You are an independent code reviewer.
 Scope: <exact diff, branch, files, or user-provided scope>
 Do not edit files.
-Do not run workflows, CI, deployment scripts, release tasks, or workflow automation unless the user explicitly and directly instructs you to run that exact command. A review request is not permission to run them.
-Use read-only inspection and lightweight local commands only when needed to ground findings.
+Do not execute programs unless the user explicitly and directly requests that execution. This includes tests, builds, package managers, scripts, servers, applications, CI, deployment, release, and workflow automation. A review or investigation request alone is not permission to execute them.
+Complete one bounded pass within five minutes.
+Do not retry, add reviewers, expand the scope, or switch to a deeper model automatically.
+If the available time or evidence is insufficient, return the supported findings and state the remaining gap.
+Use static file and line inspection only to ground findings.
 Prioritize correctness bugs, behavioral regressions, security risks, and missing tests.
 Return findings first, ordered by severity, with file/line references.
 If there are no actionable findings, say that clearly and mention residual test gaps.
@@ -52,7 +52,7 @@ node .\scripts\antigravity-bridge.mjs review --scope "current git diff in this r
 Useful options:
 
 - `--model "Gemini 3.5 Flash (Medium)"` for the default ordinary review model.
-- `--deep` to prefer `Gemini 3.1 Pro (High)` for high-risk review.
+- `--deep` to prefer `Gemini 3.1 Pro (High)` only when the user explicitly requests a deeper review.
 - `--scope "<scope>"` to preserve the user's exact target.
 - `--dry-run` to inspect the generated prompt without calling `agy`.
 
@@ -60,4 +60,4 @@ The helper stores prompt, stdout, stderr, Antigravity log, metadata, and markdow
 
 ## Result Handling
 
-Preserve Antigravity's findings, evidence boundaries, uncertainty notes, and file/line references. Verify claims locally before acting on them. Discard unsupported findings even when they sound plausible. Do not count a failed Antigravity run as a completed review. After presenting review findings, stop and ask the user which issues, if any, they want fixed before touching files.
+Preserve Antigravity's findings, evidence boundaries, uncertainty notes, and file/line references. Verify claims with static file and line inspection before reporting them as true. Discard unsupported findings even when they sound plausible. Do not retry a failed run or add another reviewer or provider without explicit user intent. After presenting review findings, stop and obtain explicit user intent before fixing any issue.

@@ -16,14 +16,14 @@ This plugin is for Codex users who want a convenient way to ask the local Antigr
 - A working Antigravity login or keyring auth.
 - Codex with local plugin support.
 
-Check readiness with:
+When the user explicitly requests executable validation, check readiness with:
 
 ```powershell
 agy --version
 node .\scripts\antigravity-bridge.mjs setup --json
 ```
 
-`agy --print` can exit 0 while printing no stdout. The helper treats the transcript final `content` as the review result and ignores transcript `thinking` fields. The setup check is successful when `agy --version` works and a non-empty final response can be extracted.
+`setup` is an explicit diagnostic command, not an automatic review preflight. `agy --print` can exit 0 while printing no stdout. The helper uses non-empty stdout immediately and otherwise treats the transcript final `content` as the review result while ignoring transcript `thinking` fields.
 
 ## Install
 
@@ -84,13 +84,13 @@ codex plugin add antigravity-bridge@personal
 
 Then start a new Codex thread so the plugin skills are loaded.
 
-Run the setup check:
+If you explicitly want to validate the executable after installation, run the setup check:
 
 ```powershell
 node $HOME\plugins\antigravity-bridge\scripts\antigravity-bridge.mjs setup
 ```
 
-The setup check verifies that the local Antigravity CLI is installed and able to return a non-empty final response.
+The setup check verifies that the local Antigravity CLI is installed and able to return a non-empty final response. Ordinary review requests do not imply permission to run this diagnostic.
 
 After installation, Codex should expose these skills:
 
@@ -119,6 +119,8 @@ node .\scripts\antigravity-bridge.mjs rescue --scope "the failing parser test"
 
 The helper normalizes model names, stores prompts/logs/results, and keeps reviewer prompts consistent.
 
+Use `--print-timeout <duration>` to set both the timeout passed to `agy --print-timeout` and the process-level hard timeout. The default for review-oriented commands is `5m0s`. A timed-out run fails without a retry, preserves any partial stdout, and records `timeout` and `timedOut` in its metadata.
+
 ## Model Selection
 
 Antigravity Bridge normalizes common shorthand before calling `agy`:
@@ -145,10 +147,10 @@ Default policy:
 
 - Use `Gemini 3.5 Flash (Medium)` for ordinary reviews and rescue planning.
 - Use `Gemini 3.5 Flash (High)` for default adversarial review.
-- Use `Gemini 3.1 Pro (High)` with `--deep` for high-risk or complex reviews.
-- Use Claude Opus or other expensive models only when explicitly requested or when a final tie-breaker is warranted.
+- Use `Gemini 3.1 Pro (High)` with `--deep` only with explicit user intent for a deeper pass.
+- Use Claude Opus or any additional provider only with explicit user intent.
 
-Smoke-test any model label with:
+When the user explicitly requests model executable validation, smoke-test a label with:
 
 ```powershell
 node .\scripts\antigravity-bridge.mjs setup --model "Gemini 3.5 Flash (Medium)" --json
@@ -160,13 +162,14 @@ The initial `1.0.0` release smoke-tested every model label listed above with `ag
 
 Antigravity Bridge treats `agy` output as advisory. Codex should verify findings locally before acting on them.
 
-Review and adversarial-review runs are read-only. They explicitly tell Antigravity:
+Review and adversarial-review runs are read-only. All three modes enforce this contract:
 
-- do not edit files;
-- do not run workflows, CI, deployment scripts, release tasks, or workflow automation unless the user explicitly and directly instructs that exact command;
-- use read-only inspection and lightweight local commands only when needed to ground findings.
+Do not execute programs unless the user explicitly and directly requests that execution. This includes tests, builds, package managers, scripts, servers, applications, CI, deployment, release, and workflow automation. A review or investigation request alone is not permission to execute them.
+Complete one bounded pass within five minutes.
+Do not retry, add reviewers, expand the scope, or switch to a deeper model automatically.
+If the available time or evidence is insufficient, return the supported findings and state the remaining gap.
 
-A general review request is not permission to run CI, deploy, release, or trigger workflow automation.
+Use static file and line inspection only by default. `--deep`, retries, executable validation, fixes, and additional providers all require explicit user intent.
 
 ## Output Handling
 
@@ -182,7 +185,7 @@ For normal runs it writes:
 - raw stdout and stderr;
 - Antigravity CLI log file;
 - markdown result extracted from transcript final `content`;
-- result metadata with the conversation id and transcript path.
+- result metadata with the timeout outcome, conversation id, and transcript path.
 
 ## Repository Layout
 

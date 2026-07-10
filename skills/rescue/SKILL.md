@@ -7,20 +7,20 @@ description: Use when Codex should ask the Antigravity agy CLI for a rescue-styl
 
 Use `agy` for investigation or follow-up rescue work from Codex. Unlike `review` and `adversarial-review`, this skill can support implementation only when the user explicitly asks for a fix or patch. Otherwise keep Antigravity in investigation and plan mode.
 
-## Preflight
+## Execution and Time Policy
 
-```powershell
-Get-Command agy -ErrorAction SilentlyContinue
-agy --version
-node .\scripts\antigravity-bridge.mjs setup --json
-```
+Do not execute programs unless the user explicitly and directly requests that execution. This includes tests, builds, package managers, scripts, servers, applications, CI, deployment, release, and workflow automation. A review or investigation request alone is not permission to execute them.
+Complete one bounded pass within five minutes.
+Do not retry, add reviewers, expand the scope, or switch to a deeper model automatically.
+If the available time or evidence is insufficient, return the supported findings and state the remaining gap.
+
+Use static file and line inspection only by default. `setup` remains available as an explicit diagnostic command, but run it or otherwise validate the `agy` executable only when the user explicitly requests executable validation.
 
 ## Mode Selection
 
 - Use `Gemini 3.5 Flash (Medium)` by default for investigation, debugging, log interpretation, and fix planning.
-- Use `Gemini 3.1 Pro (High)` with `--deep` for difficult failures, deep architectural diagnosis, security-sensitive issues, or repeated failed attempts.
-- Use Claude or GPT-OSS models only when the user explicitly requests that model family or you need a diverse final tie-breaker.
-- Do not ask Antigravity to run workflows, CI, deployment scripts, release tasks, or workflow automation unless the user explicitly and directly instructs you to run that exact command. A rescue request is not permission to run them.
+- Use `Gemini 3.1 Pro (High)` with `--deep` only with explicit user intent for a deeper investigation.
+- Use Claude, GPT-OSS, or any additional provider only with explicit user intent.
 - If the user only asks for rescue/investigation, ask Antigravity for findings and a plan, not edits.
 - If the user explicitly asks Antigravity to fix, constrain the scope and verify the resulting patch yourself before reporting completion.
 
@@ -30,8 +30,11 @@ node .\scripts\antigravity-bridge.mjs setup --json
 You are a rescue engineer giving Codex an external second opinion.
 Scope: <exact user request and relevant files, logs, or diff>
 Do not edit files unless the user explicitly requested a fix.
-Do not run workflows, CI, deployment scripts, release tasks, or workflow automation unless the user explicitly and directly instructs you to run that exact command. A rescue request is not permission to run them.
-Use read-only inspection and lightweight local commands when needed.
+Do not execute programs unless the user explicitly and directly requests that execution. This includes tests, builds, package managers, scripts, servers, applications, CI, deployment, release, and workflow automation. A review or investigation request alone is not permission to execute them.
+Complete one bounded pass within five minutes.
+Do not retry, add reviewers, expand the scope, or switch to a deeper model automatically.
+If the available time or evidence is insufficient, return the supported findings and state the remaining gap.
+Use static file and line inspection only to ground findings.
 Return actionable findings, likely root cause, and the smallest safe next step.
 If proposing a fix, include files and line references.
 ```
@@ -42,6 +45,6 @@ If proposing a fix, include files and line references.
 node .\scripts\antigravity-bridge.mjs rescue --scope "<user request and relevant context>"
 ```
 
-Use `--deep` or `--model "Gemini 3.1 Pro (High)"` only for difficult failures, security-sensitive issues, or repeated failed attempts.
+Use `--deep` or `--model "Gemini 3.1 Pro (High)"` only when the user explicitly requests a deeper investigation.
 
-Treat Antigravity output as advisory. Preserve observed facts, inferences, open questions, and next steps. Verify code claims, command claims, and proposed fixes locally. If Antigravity was not successfully invoked, report the failure and do not invent a substitute rescue answer.
+Treat Antigravity output as advisory. Preserve observed facts, inferences, open questions, and next steps. Verify code claims and proposed fixes with static file and line inspection unless the user explicitly requests execution. If Antigravity was not successfully invoked, report the failure; do not retry, add another reviewer or provider, invent a substitute answer, or make fixes without explicit user intent.

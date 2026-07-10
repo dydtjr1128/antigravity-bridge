@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT_DIR = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const PROMPT_DIR = path.join(ROOT_DIR, "prompts");
@@ -59,6 +59,24 @@ function parseArgs(argv) {
     index += 1;
   }
   return { options, positionals };
+}
+
+export function parseDuration(value) {
+  const input = String(value ?? "").trim();
+  const match = /^(?:(\d+)m)?(?:(\d+)s)?(?:(\d+)ms)?$/.exec(input);
+  if (!match) {
+    throw new Error(`Invalid timeout duration: ${value}`);
+  }
+
+  const totalMs =
+    Number(match[1] ?? 0) * 60_000 +
+    Number(match[2] ?? 0) * 1_000 +
+    Number(match[3] ?? 0);
+  if (totalMs <= 0 || !Number.isSafeInteger(totalMs)) {
+    throw new Error(`Invalid timeout duration: ${value}`);
+  }
+
+  return totalMs;
 }
 
 function compact(value) {
@@ -136,18 +154,48 @@ function renderPrompt(template, values) {
   return template.replace(/\{\{([A-Z_]+)\}\}/g, (_, key) => values[key] ?? "");
 }
 
-function run(command, args, options = {}) {
-  return spawnSync(command, args, {
+export function run(command, args, options = {}) {
+  const spawn = options.spawn ?? spawnSync;
+  return spawn(command, args, {
     cwd: options.cwd,
     encoding: "utf8",
     env: process.env,
     windowsHide: true,
-    maxBuffer: 20 * 1024 * 1024
+    maxBuffer: 20 * 1024 * 1024,
+    timeout: options.timeoutMs
   });
 }
 
 function outputText(value) {
   return typeof value === "string" ? value : "";
+}
+
+export function commandReport(result, options = {}) {
+  const stdout = outputText(result.stdout).trim();
+  const stderr = outputText(result.stderr).trim();
+  const spawnError = result.error instanceof Error ? result.error.message : "";
+  const timedOut = result.error?.code === "ETIMEDOUT";
+  const providerFailed = result.status !== 0 || Boolean(spawnError);
+  let transcript = { conversationId: null, transcriptPath: null, result: "" };
+
+  if (!stdout && !providerFailed && !timedOut && options.transcriptLookup) {
+    transcript = options.transcriptLookup();
+  }
+
+  const review = stdout || outputText(transcript.result).trim();
+  return {
+    status: result.status,
+    signal: result.signal,
+    stdout,
+    stderr,
+    spawnError: spawnError || null,
+    timeout: options.timeout ?? null,
+    timedOut,
+    conversationId: transcript.conversationId ?? null,
+    transcriptPath: transcript.transcriptPath ?? null,
+    success: result.status === 0 && !spawnError && !timedOut && review.length > 0,
+    result: review
+  };
 }
 
 function antigravityDataDir() {
@@ -271,28 +319,32 @@ function runAgyPrompt({ command, cwd, prompt, model, outputDir, timeout, sandbox
   const dataDir = antigravityDataDir();
   const beforeIds = new Set(listBrainIds(dataDir).map((item) => item.id));
   const startMs = Date.now();
+  const timeoutMs = parseDuration(timeout);
   const args = ["--log-file", logFile, "--model", model, "--print-timeout", timeout];
   if (sandbox) {
     args.push("--sandbox");
   }
   args.push("--print", prompt);
-  const agy = run("agy", args, { cwd });
+  const agy = run("agy", args, { cwd, timeoutMs });
   const stdout = outputText(agy.stdout);
   const stderr = outputText(agy.stderr);
   fs.writeFileSync(stdoutFile, stdout, "utf8");
   fs.writeFileSync(stderrFile, stderr, "utf8");
-  const transcript = findConversationResult(dataDir, cwd, beforeIds, startMs);
-  const result = transcript.result || stdout.trim();
-  fs.writeFileSync(mdFile, result, "utf8");
-  const spawnError = agy.error instanceof Error ? agy.error.message : "";
+  const report = commandReport(agy, {
+    timeout,
+    transcriptLookup: () => findConversationResult(dataDir, cwd, beforeIds, startMs)
+  });
+  fs.writeFileSync(mdFile, report.result, "utf8");
   const metadata = {
     command,
     model,
-    status: agy.status,
-    signal: agy.signal,
-    spawnError: spawnError || null,
-    conversationId: transcript.conversationId,
-    transcriptPath: transcript.transcriptPath,
+    status: report.status,
+    signal: report.signal,
+    spawnError: report.spawnError,
+    timeout: report.timeout,
+    timedOut: report.timedOut,
+    conversationId: report.conversationId,
+    transcriptPath: report.transcriptPath,
     stdoutFile,
     stderrFile,
     logFile,
@@ -304,8 +356,8 @@ function runAgyPrompt({ command, cwd, prompt, model, outputDir, timeout, sandbox
     ...metadata,
     metadataFile,
     outputDir,
-    success: agy.status === 0 && !spawnError && result.trim().length > 0,
-    result
+    success: report.success,
+    result: report.result
   };
 }
 
@@ -362,6 +414,8 @@ function handleAgyCommand(command, options, positionals) {
     printOutput({
       command,
       model,
+      timeout,
+      timedOut: false,
       prompt,
       result: prompt
     }, Boolean(options.json));
@@ -400,9 +454,11 @@ function main() {
   handleAgyCommand(command, options, positionals);
 }
 
-try {
-  main();
-} catch (error) {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-  process.exitCode = 1;
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  try {
+    main();
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 1;
+  }
 }
