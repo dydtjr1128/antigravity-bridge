@@ -29,11 +29,11 @@ function usage() {
     "Options:",
     "  --cwd <path>            Run from this repository path.",
     "  --output-dir <path>     Store agy stdout, stderr, log, prompt, and markdown output here.",
-    "  --print-timeout <time>  Timeout passed to agy --print-timeout. Default: 5m0s.",
+    "  --print-timeout <time>  Timeout for agy print and the process-level hard timeout. Default: 5m0s.",
     "  --sandbox               Pass agy --sandbox.",
     "  --dry-run               Print the generated prompt without calling agy.",
     "  --json                  Print machine-readable wrapper output.",
-    "  --deep                  Prefer Gemini 3.1 Pro (High) for high-risk/deep review."
+    "  --deep                  Prefer Gemini 3.1 Pro (High) only when explicitly requested."
   ].join("\n"));
 }
 

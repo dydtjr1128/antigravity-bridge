@@ -177,3 +177,18 @@ test("skills limit preflight and verification to explicit, static actions", () =
   assert.match(readme, /5m0s/);
   assert.match(readme, /explicit user intent/i);
 });
+
+test("usage documents the process-level hard timeout", () => {
+  const text = readFileSync(BRIDGE_SCRIPT, "utf8");
+  const timeoutLine = text.split(/\r?\n/).find((line) => line.includes("--print-timeout <time>"));
+
+  assert.match(timeoutLine ?? "", /process-level hard timeout/i);
+});
+
+test("usage requires explicit opt-in for deep review", () => {
+  const text = readFileSync(BRIDGE_SCRIPT, "utf8");
+  const deepLine = text.split(/\r?\n/).find((line) => line.includes('"  --deep'));
+
+  assert.doesNotMatch(deepLine ?? "", /high-risk\/deep review/i);
+  assert.match(deepLine ?? "", /only when explicitly requested/i);
+});
