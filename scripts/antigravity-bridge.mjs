@@ -272,9 +272,15 @@ function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-function findConversationResult(dataDir, cwd, beforeIds, startMs) {
+export function findConversationResult(dataDir, cwd, beforeIds, startMs, deadlineMs, options = {}) {
+  const now = options.now ?? Date.now;
+  const listBrainIdsForLookup = options.listBrainIds ?? listBrainIds;
+  const sleepForLookup = options.sleep ?? sleep;
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const after = listBrainIds(dataDir);
+    if (now() >= deadlineMs) {
+      break;
+    }
+    const after = listBrainIdsForLookup(dataDir);
     const newItems = after.filter((item) => !beforeIds.has(item.id)).sort((a, b) => b.mtimeMs - a.mtimeMs);
     const candidates = [
       ...newItems.map((item) => item.id),
@@ -288,7 +294,11 @@ function findConversationResult(dataDir, cwd, beforeIds, startMs) {
         return { conversationId: id, transcriptPath: file, result };
       }
     }
-    sleep(250);
+    const remainingMs = deadlineMs - now();
+    if (remainingMs <= 0) {
+      break;
+    }
+    sleepForLookup(Math.min(250, remainingMs));
   }
   return { conversationId: null, transcriptPath: null, result: "" };
 }
@@ -332,7 +342,7 @@ function runAgyPrompt({ command, cwd, prompt, model, outputDir, timeout, sandbox
   fs.writeFileSync(stderrFile, stderr, "utf8");
   const report = commandReport(agy, {
     timeout,
-    transcriptLookup: () => findConversationResult(dataDir, cwd, beforeIds, startMs)
+    transcriptLookup: () => findConversationResult(dataDir, cwd, beforeIds, startMs, startMs + timeoutMs)
   });
   fs.writeFileSync(mdFile, report.result, "utf8");
   const metadata = {

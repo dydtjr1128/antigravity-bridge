@@ -140,6 +140,64 @@ test("commandReport preserves provider failure and timeout metadata without poll
   assert.equal(transcriptLookups, 0);
 });
 
+test("findConversationResult stops before polling or sleeping after its deadline", async () => {
+  const bridge = await loadBridge();
+  let transcriptPolls = 0;
+  let sleeps = 0;
+
+  const result = bridge.findConversationResult(
+    path.join(ROOT_DIR, ".missing-test-data"),
+    ROOT_DIR,
+    new Set(),
+    1_000,
+    1_100,
+    {
+      now: () => 1_100,
+      listBrainIds: () => {
+        transcriptPolls += 1;
+        return [];
+      },
+      sleep: () => {
+        sleeps += 1;
+      }
+    }
+  );
+
+  assert.deepEqual(result, { conversationId: null, transcriptPath: null, result: "" });
+  assert.equal(transcriptPolls, 0);
+  assert.equal(sleeps, 0);
+});
+
+test("findConversationResult caps its sleep to the remaining deadline", async () => {
+  const bridge = await loadBridge();
+  let now = 1_000;
+  let transcriptPolls = 0;
+  const sleeps = [];
+
+  const result = bridge.findConversationResult(
+    path.join(ROOT_DIR, ".missing-test-data"),
+    ROOT_DIR,
+    new Set(),
+    1_000,
+    1_100,
+    {
+      now: () => now,
+      listBrainIds: () => {
+        transcriptPolls += 1;
+        return [];
+      },
+      sleep: (ms) => {
+        sleeps.push(ms);
+        now += ms;
+      }
+    }
+  );
+
+  assert.deepEqual(result, { conversationId: null, transcriptPath: null, result: "" });
+  assert.equal(transcriptPolls, 1);
+  assert.deepEqual(sleeps, [100]);
+});
+
 const boundedPolicy = [
   "Do not execute programs unless the user explicitly and directly requests that execution.",
   "Complete one bounded pass within five minutes.",
