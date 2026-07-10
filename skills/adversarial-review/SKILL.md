@@ -13,6 +13,9 @@ Do not execute programs unless the user explicitly and directly requests that ex
 Complete one bounded pass within five minutes.
 Do not retry, add reviewers, expand the scope, or switch to a deeper model automatically.
 If the available time or evidence is insufficient, return the supported findings and state the remaining gap.
+Start with the exact diff or named files in scope and inspect only directly relevant dependencies needed to support a concrete finding.
+Do not perform repository-wide discovery, recursively follow references, or pursue speculative context.
+Once a finding has enough static evidence, report it; if evidence remains insufficient, state the uncertainty and remaining gap instead of continuing to investigate.
 
 Use static file and line inspection only by default. `setup` remains available as an explicit diagnostic command, but run it or otherwise validate the `agy` executable only when the user explicitly requests executable validation.
 
@@ -32,6 +35,9 @@ Do not execute programs unless the user explicitly and directly requests that ex
 Complete one bounded pass within five minutes.
 Do not retry, add reviewers, expand the scope, or switch to a deeper model automatically.
 If the available time or evidence is insufficient, return the supported findings and state the remaining gap.
+Start with the exact diff or named files in scope and inspect only directly relevant dependencies needed to support a concrete finding.
+Do not perform repository-wide discovery, recursively follow references, or pursue speculative context.
+Once a finding has enough static evidence, report it; if evidence remains insufficient, state the uncertainty and remaining gap instead of continuing to investigate.
 Use static file and line inspection only to ground findings.
 
 Try to find the strongest reasons this should not ship yet.
