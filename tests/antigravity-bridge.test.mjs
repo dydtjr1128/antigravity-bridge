@@ -199,7 +199,9 @@ test("findConversationResult caps its sleep to the remaining deadline", async ()
 });
 
 const boundedPolicy = [
-  "Do not execute programs unless the user explicitly and directly requests that execution.",
+  "Do not execute project code or validation commands unless the user explicitly and directly requests that execution.",
+  "Read-only repository inspection commands required to obtain the requested scope are allowed, including `git diff`, `git status`, `git show`, `git log`, `git blame`, and `git ls-files`.",
+  "Do not use shell commands for any other purpose, and do not run commands that modify files, the index, refs, configuration, or other repository state.",
   "Complete one bounded pass within five minutes.",
   "Do not retry, add reviewers, expand the scope, or switch to a deeper model automatically.",
   "If the available time or evidence is insufficient, return the supported findings and state the remaining gap.",
