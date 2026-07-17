@@ -112,8 +112,8 @@ Antigravity Bridge includes a small companion script inspired by the helper-runt
 
 ```powershell
 node .\scripts\antigravity-bridge.mjs setup
-node .\scripts\antigravity-bridge.mjs review --scope "current git diff in this repository"
-node .\scripts\antigravity-bridge.mjs adversarial-review --scope "current git diff in this repository"
+node .\scripts\antigravity-bridge.mjs review --scope "all current uncommitted changes, including staged, unstaged, and untracked files"
+node .\scripts\antigravity-bridge.mjs adversarial-review --scope "all current uncommitted changes, including staged, unstaged, and untracked files"
 node .\scripts\antigravity-bridge.mjs rescue --scope "the failing parser test"
 ```
 
@@ -204,3 +204,7 @@ prompts/
 scripts/
   antigravity-bridge.mjs
 ```
+
+## License
+
+Licensed under the Apache License, Version 2.0. See `LICENSE` for the full terms.

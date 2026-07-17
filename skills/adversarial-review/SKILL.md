@@ -11,6 +11,7 @@ Use `agy` for a review-only challenge pass. This is not a normal defect sweep; i
 
 Do not execute project code or validation commands unless the user explicitly and directly requests that execution. This includes tests, builds, package managers, scripts, servers, applications, CI, deployment, release, and workflow automation. A review or investigation request alone is not permission to execute them.
 Read-only repository inspection commands required to obtain the requested scope are allowed, including `git diff`, `git status`, `git show`, `git log`, `git blame`, and `git ls-files`.
+When the scope is current uncommitted work, include staged, unstaged, and untracked files; enumerate them with read-only Git inspection before reviewing only those changes.
 Do not use shell commands for any other purpose, and do not run commands that modify files, the index, refs, configuration, or other repository state.
 Complete one bounded pass within five minutes.
 Do not retry, add reviewers, expand the scope, or switch to a deeper model automatically.
@@ -55,7 +56,7 @@ Then give a short structural verdict: solid parts, fragile parts, and top 3 impr
 ## Preferred Helper
 
 ```powershell
-node .\scripts\antigravity-bridge.mjs adversarial-review --scope "current git diff in this repository"
+node .\scripts\antigravity-bridge.mjs adversarial-review --scope "all current uncommitted changes, including staged, unstaged, and untracked files"
 ```
 
 Use `--deep` or `--model "Gemini 3.1 Pro (High)"` only when the user explicitly requests a deeper pass.

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -42,6 +42,15 @@ test("run passes the print timeout as a hard timeout to an injected provider", a
   assert.equal(result.stdout, "review complete");
   assert.equal(invocation.command, "agy");
   assert.equal(invocation.options.timeout, 50);
+});
+
+test("default review scope covers all uncommitted work", async () => {
+  const bridge = await loadBridge();
+
+  assert.equal(
+    bridge.DEFAULT_REVIEW_SCOPE,
+    "all current uncommitted changes in this repository, including staged, unstaged, and untracked files"
+  );
 });
 
 test("commandReport uses non-empty stdout without polling transcripts", async () => {
@@ -201,6 +210,7 @@ test("findConversationResult caps its sleep to the remaining deadline", async ()
 const boundedPolicy = [
   "Do not execute project code or validation commands unless the user explicitly and directly requests that execution.",
   "Read-only repository inspection commands required to obtain the requested scope are allowed, including `git diff`, `git status`, `git show`, `git log`, `git blame`, and `git ls-files`.",
+  "When the scope is current uncommitted work, include staged, unstaged, and untracked files; enumerate them with read-only Git inspection before reviewing only those changes.",
   "Do not use shell commands for any other purpose, and do not run commands that modify files, the index, refs, configuration, or other repository state.",
   "Complete one bounded pass within five minutes.",
   "Do not retry, add reviewers, expand the scope, or switch to a deeper model automatically.",
@@ -254,4 +264,9 @@ test("usage requires explicit opt-in for deep review", () => {
 
   assert.doesNotMatch(deepLine ?? "", /high-risk\/deep review/i);
   assert.match(deepLine ?? "", /only when explicitly requested/i);
+});
+
+test("repository declares Apache-2.0 licensing", () => {
+  assert.ok(existsSync(path.join(ROOT_DIR, "LICENSE")));
+  assert.match(readFileSync(path.join(ROOT_DIR, "LICENSE"), "utf8"), /Apache License[\s\S]*Version 2\.0/);
 });

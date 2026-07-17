@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT_DIR = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const PROMPT_DIR = path.join(ROOT_DIR, "prompts");
 const VALID_COMMANDS = new Set(["setup", "review", "adversarial-review", "rescue"]);
+export const DEFAULT_REVIEW_SCOPE = "all current uncommitted changes in this repository, including staged, unstaged, and untracked files";
 const DEFAULT_MODELS = {
   setup: "Gemini 3.5 Flash (Medium)",
   review: "Gemini 3.5 Flash (Medium)",
@@ -405,7 +406,7 @@ function handleSetup(options) {
 
 function handleAgyCommand(command, options, positionals) {
   const cwd = path.resolve(options.cwd ?? process.cwd());
-  const scope = options.scope ?? "current git diff in this repository";
+  const scope = options.scope ?? DEFAULT_REVIEW_SCOPE;
   const userFocus = positionals.join(" ").trim() || "No extra focus provided.";
   const language = options.language ?? "Korean unless the user requested another language";
   const model = normalizeModel(options.model, command, Boolean(options.deep));
