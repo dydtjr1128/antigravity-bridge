@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
@@ -79,30 +80,20 @@ test("commandReport uses non-empty stdout without polling transcripts", async ()
   assert.equal(transcriptLookups, 0);
 });
 
-test("commandReport polls transcripts only after an empty successful stdout", async () => {
+test("empty successful stdout fails without consulting stale or concurrent transcripts", async () => {
   const bridge = await loadBridge();
-  let transcriptLookups = 0;
-  const success = bridge.run("agy", [], {
-    spawn: () => ({ status: 0, signal: null, stdout: "", stderr: "" })
-  });
-
-  const report = bridge.commandReport(success, {
-    timeout: "5m0s",
+  let lookups = 0;
+  const report = bridge.commandReport({ status: 0, stdout: "  ", stderr: "" }, {
     transcriptLookup: () => {
-      transcriptLookups += 1;
-      return {
-        conversationId: "conversation-1",
-        transcriptPath: "transcript.jsonl",
-        result: "transcript review"
-      };
+      lookups += 1;
+      return { conversationId: "old-or-concurrent", result: "unrelated review" };
     }
   });
-
-  assert.equal(report.result, "transcript review");
-  assert.equal(report.conversationId, "conversation-1");
-  assert.equal(report.transcriptPath, "transcript.jsonl");
-  assert.equal(report.success, true);
-  assert.equal(transcriptLookups, 1);
+  assert.equal(report.success, false);
+  assert.equal(report.result, "");
+  assert.equal(report.conversationId, null);
+  assert.equal(report.transcriptPath, null);
+  assert.equal(lookups, 0);
 });
 
 test("commandReport preserves provider failure and timeout metadata without polling", async () => {
@@ -147,64 +138,6 @@ test("commandReport preserves provider failure and timeout metadata without poll
   assert.equal(timeoutReport.timedOut, true);
   assert.equal(timeoutReport.success, false);
   assert.equal(transcriptLookups, 0);
-});
-
-test("findConversationResult stops before polling or sleeping after its deadline", async () => {
-  const bridge = await loadBridge();
-  let transcriptPolls = 0;
-  let sleeps = 0;
-
-  const result = bridge.findConversationResult(
-    path.join(ROOT_DIR, ".missing-test-data"),
-    ROOT_DIR,
-    new Set(),
-    1_000,
-    1_100,
-    {
-      now: () => 1_100,
-      listBrainIds: () => {
-        transcriptPolls += 1;
-        return [];
-      },
-      sleep: () => {
-        sleeps += 1;
-      }
-    }
-  );
-
-  assert.deepEqual(result, { conversationId: null, transcriptPath: null, result: "" });
-  assert.equal(transcriptPolls, 0);
-  assert.equal(sleeps, 0);
-});
-
-test("findConversationResult caps its sleep to the remaining deadline", async () => {
-  const bridge = await loadBridge();
-  let now = 1_000;
-  let transcriptPolls = 0;
-  const sleeps = [];
-
-  const result = bridge.findConversationResult(
-    path.join(ROOT_DIR, ".missing-test-data"),
-    ROOT_DIR,
-    new Set(),
-    1_000,
-    1_100,
-    {
-      now: () => now,
-      listBrainIds: () => {
-        transcriptPolls += 1;
-        return [];
-      },
-      sleep: (ms) => {
-        sleeps.push(ms);
-        now += ms;
-      }
-    }
-  );
-
-  assert.deepEqual(result, { conversationId: null, transcriptPath: null, result: "" });
-  assert.equal(transcriptPolls, 1);
-  assert.deepEqual(sleeps, [100]);
 });
 
 const boundedPolicy = [
@@ -269,4 +202,84 @@ test("usage requires explicit opt-in for deep review", () => {
 test("repository declares Apache-2.0 licensing", () => {
   assert.ok(existsSync(path.join(ROOT_DIR, "LICENSE")));
   assert.match(readFileSync(path.join(ROOT_DIR, "LICENSE"), "utf8"), /Apache License[\s\S]*Version 2\.0/);
+});
+
+
+test("CLI rejects unknown, conflicting, and unsupported setup options", async () => {
+  const bridge = await loadBridge();
+  assert.throws(() => bridge.parseArgs(["--print-timout", "30s"]), /Unknown option/);
+  assert.throws(() => bridge.parseArgs(["--model"]), /Missing value/);
+  for (const command of ["review", "setup"]) {
+    assert.throws(() => bridge.validateCommandOptions(command, { deep: true, model: "pro" }), /either/);
+  }
+  for (const option of ["scope", "language", "output-dir", "dry-run"]) {
+    assert.throws(() => bridge.validateCommandOptions("setup", { [option]: "value" }), /not valid/);
+  }
+  assert.throws(() => bridge.validateCommandOptions("setup", {}, ["extra"]), /positional/);
+  assert.deepEqual(bridge.parseArgs(["--help"]), { options: { help: true }, positionals: [] });
+  assert.deepEqual(bridge.parseArgs(["--", "--literal"]), { options: {}, positionals: ["--literal"] });
+});
+
+test("setup shares its deadline between version and smoke", async () => {
+  const bridge = await loadBridge();
+  let time = 1000;
+  const result = bridge.runSetupCheck({ "print-timeout": "100ms" }, {
+    now: () => time,
+    run: (_command, args, options) => {
+      assert.deepEqual(args, ["--version"]);
+      assert.equal(options.timeoutMs, 100);
+      time += 30;
+      return { status: 0, stdout: "version", stderr: "" };
+    },
+    runPrompt: (options) => {
+      assert.equal(options.timeout, "70ms");
+      time += 20;
+      return { success: true };
+    }
+  });
+  assert.equal(result.ready, true);
+});
+
+test("setup skips smoke on version failure or deadline exhaustion", async () => {
+  const bridge = await loadBridge();
+  for (const mode of ["failure", "deadline", "spawn-error"]) {
+    let time = 1000;
+    let smokeCalls = 0;
+    const result = bridge.runSetupCheck({ "print-timeout": "100ms" }, {
+      now: () => time,
+      run: () => {
+        if (mode === "deadline") time += 100;
+        return { status: mode === "failure" ? 1 : 0, stdout: "", stderr: "", error: mode === "spawn-error" ? new Error("missing") : undefined };
+      },
+      runPrompt: () => { smokeCalls += 1; return { success: true }; }
+    });
+    assert.equal(result.ready, false, mode);
+    assert.equal(result.smoke.skipped, true, mode);
+    assert.equal(smokeCalls, 0, mode);
+  }
+});
+
+
+test("Flash aliases use the current catalog while explicit legacy labels stay pinned", async () => {
+  const bridge = await loadBridge();
+  assert.equal(bridge.normalizeModel(undefined, "review", false), "Gemini 3.8 Flash (Medium)");
+  assert.equal(bridge.normalizeModel(undefined, "adversarial-review", false), "Gemini 3.8 Flash (High)");
+  assert.equal(bridge.normalizeModel("flash", "review", false), "Gemini 3.8 Flash (Medium)");
+  assert.equal(bridge.normalizeModel("gemini-3.8-flash-high", "review", false), "Gemini 3.8 Flash (High)");
+  assert.equal(bridge.normalizeModel("gemini-3.5-flash-medium", "review", false), "Gemini 3.5 Flash (Medium)");
+  assert.equal(bridge.normalizeModel("opus", "review", false), "Claude Opus 4.6 (Thinking)");
+});
+
+test("CLI dry-run validates timeout and emits the selected model", () => {
+  const invoke = (...args) => spawnSync(process.execPath, [BRIDGE_SCRIPT, ...args], { encoding: "utf8", timeout: 10000 });
+  const valid = invoke("review", "--dry-run", "--json", "--print-timeout", "30s");
+  assert.equal(valid.status, 0, valid.stderr);
+  assert.equal(JSON.parse(valid.stdout).timeout, "30s");
+  assert.equal(JSON.parse(valid.stdout).model, "Gemini 3.8 Flash (Medium)");
+  const invalid = invoke("review", "--dry-run", "--print-timeout", "nonsense");
+  assert.equal(invalid.status, 1);
+  assert.match(invalid.stderr, /Invalid timeout/);
+  const typo = invoke("review", "--dry-run", "--print-timout", "30s");
+  assert.equal(typo.status, 1);
+  assert.match(typo.stderr, /Unknown option/);
 });

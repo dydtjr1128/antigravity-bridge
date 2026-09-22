@@ -23,7 +23,7 @@ agy --version
 node .\scripts\antigravity-bridge.mjs setup --json
 ```
 
-`setup` is an explicit diagnostic command, not an automatic review preflight. `agy --print` can exit 0 while printing no stdout. The helper uses non-empty stdout immediately and otherwise treats the transcript final `content` as the review result while ignoring transcript `thinking` fields.
+`setup` is an explicit diagnostic command, not an automatic review preflight. `agy --print` can exit 0 while printing no stdout. The helper accepts only non-empty stdout from the current invocation. Empty stdout is a failed result even with exit code 0; global transcripts are never used because they cannot be reliably attributed to this run.
 
 ## Install
 
@@ -121,12 +121,14 @@ The helper normalizes model names, stores prompts/logs/results, and keeps review
 
 Use `--print-timeout <duration>` to set both the timeout passed to `agy --print-timeout` and the process-level hard timeout. The default for review-oriented commands is `5m0s`. A timed-out run fails without a retry, preserves any partial stdout, and records `timeout` and `timedOut` in its metadata.
 
+Setup uses one one-minute deadline across version and smoke probes; `--print-timeout` overrides it. A failed version probe or exhausted budget skips smoke. Unknown options, unsupported setup options, and conflicting `--deep` / `--model` are rejected before execution.
+
 ## Model Selection
 
 Antigravity Bridge normalizes common shorthand before calling `agy`:
 
-- `flash`, `flash-medium`, or `gemini-3-5-flash-medium` -> `Gemini 3.5 Flash (Medium)`
-- `flash-high` or `gemini-3-5-flash-high` -> `Gemini 3.5 Flash (High)`
+- `flash`, `flash-medium`, or `gemini-3-8-flash-medium` -> `Gemini 3.8 Flash (Medium)`
+- `flash-high` or `gemini-3-8-flash-high` -> `Gemini 3.8 Flash (High)`
 - `pro`, `pro-high`, or `gemini-3-1-pro-high` -> `Gemini 3.1 Pro (High)`
 - `sonnet`, `sonnet-4-6`, or `claude-sonnet-4-6` -> `Claude Sonnet 4.6 (Thinking)`
 - `opus`, `opus-4-6`, or `claude-opus-4-6` -> `Claude Opus 4.6 (Thinking)`
@@ -134,9 +136,9 @@ Antigravity Bridge normalizes common shorthand before calling `agy`:
 
 Known Antigravity model labels include:
 
-- `Gemini 3.5 Flash (Medium)` default for ordinary reviews.
-- `Gemini 3.5 Flash (High)` for stronger routine challenge reviews.
-- `Gemini 3.5 Flash (Low)` for cheap smoke checks.
+- `Gemini 3.8 Flash (Medium)` default for ordinary reviews.
+- `Gemini 3.8 Flash (High)` for stronger routine challenge reviews.
+- `Gemini 3.8 Flash (Low)` for cheap smoke checks.
 - `Gemini 3.1 Pro (Low)` for moderate deeper checks.
 - `Gemini 3.1 Pro (High)` for high-risk or deep reviews.
 - `Claude Sonnet 4.6 (Thinking)` for cross-vendor thinking passes.
@@ -145,18 +147,18 @@ Known Antigravity model labels include:
 
 Default policy:
 
-- Use `Gemini 3.5 Flash (Medium)` for ordinary reviews and rescue planning.
-- Use `Gemini 3.5 Flash (High)` for default adversarial review.
+- Use `Gemini 3.8 Flash (Medium)` for ordinary reviews and rescue planning.
+- Use `Gemini 3.8 Flash (High)` for default adversarial review.
 - Use `Gemini 3.1 Pro (High)` with `--deep` only with explicit user intent for a deeper pass.
 - Use Claude Opus or any additional provider only with explicit user intent.
 
 When the user explicitly requests model executable validation, smoke-test a label with:
 
 ```powershell
-node .\scripts\antigravity-bridge.mjs setup --model "Gemini 3.5 Flash (Medium)" --json
+node .\scripts\antigravity-bridge.mjs setup --model "Gemini 3.8 Flash (Medium)" --json
 ```
 
-The initial `1.0.0` release smoke-tested every model label listed above with `agy` print mode and transcript extraction.
+The Flash defaults match the `agy models` catalog observed on 2026-09-23. Explicit `gemini-3-5-flash-*` aliases retain their previous labels; availability depends on the provider. Claude labels remain at the versions listed by Antigravity and are independent of Claude Bridge model IDs.
 
 ## Safety Rules
 
@@ -185,8 +187,8 @@ For normal runs it writes:
 - generated prompt;
 - raw stdout and stderr;
 - Antigravity CLI log file;
-- markdown result extracted from transcript final `content`;
-- result metadata with the timeout outcome, conversation id, and transcript path.
+- markdown result from the current invocation stdout;
+- result metadata with success and timeout outcomes; legacy conversation and transcript fields remain null.
 
 ## Repository Layout
 

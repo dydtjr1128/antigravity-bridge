@@ -24,7 +24,7 @@ Use static file and line inspection only by default. `setup` remains available a
 
 ## Mode Selection
 
-- Use `Gemini 3.5 Flash (Medium)` by default for investigation, debugging, log interpretation, and fix planning.
+- Use `Gemini 3.8 Flash (Medium)` by default for investigation, debugging, log interpretation, and fix planning.
 - Use `Gemini 3.1 Pro (High)` with `--deep` only with explicit user intent for a deeper investigation.
 - Use Claude, GPT-OSS, or any additional provider only with explicit user intent.
 - If the user only asks for rescue/investigation, ask Antigravity for findings and a plan, not edits.

@@ -24,8 +24,8 @@ Use static file and line inspection only by default. `setup` remains available a
 
 ## Model Selection
 
-- Use `Gemini 3.5 Flash (Medium)` by default for ordinary reviews.
-- Use `Gemini 3.5 Flash (High)` only when the user explicitly requests that model.
+- Use `Gemini 3.8 Flash (Medium)` by default for ordinary reviews.
+- Use `Gemini 3.8 Flash (High)` only when the user explicitly requests that model.
 - Use `Gemini 3.1 Pro (High)` with `--deep` only with explicit user intent for a deeper review.
 - Use `Claude Opus 4.6 (Thinking)` or any additional provider only with explicit user intent.
 
@@ -62,7 +62,7 @@ node .\scripts\antigravity-bridge.mjs review --scope "all current uncommitted ch
 
 Useful options:
 
-- `--model "Gemini 3.5 Flash (Medium)"` for the default ordinary review model.
+- `--model "Gemini 3.8 Flash (Medium)"` for the default ordinary review model.
 - `--deep` to prefer `Gemini 3.1 Pro (High)` only when the user explicitly requests a deeper review.
 - `--scope "<scope>"` to preserve the user's exact target.
 - `--dry-run` to inspect the generated prompt without calling `agy`.
