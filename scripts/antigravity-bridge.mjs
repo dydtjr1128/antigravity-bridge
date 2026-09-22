@@ -10,12 +10,15 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT_DIR = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const PROMPT_DIR = path.join(ROOT_DIR, "prompts");
 const VALID_COMMANDS = new Set(["setup", "review", "adversarial-review", "rescue"]);
+const BOOLEAN_OPTIONS = new Set(["json", "dry-run", "deep", "sandbox", "help"]);
+const VALUE_OPTIONS = new Set(["cwd", "output-dir", "print-timeout", "language", "scope", "model"]);
+const SETUP_OPTIONS = new Set(["cwd", "print-timeout", "model", "deep", "sandbox", "json", "help"]);
 export const DEFAULT_REVIEW_SCOPE = "all current uncommitted changes in this repository, including staged, unstaged, and untracked files";
 const DEFAULT_MODELS = {
-  setup: "Gemini 3.5 Flash (Medium)",
-  review: "Gemini 3.5 Flash (Medium)",
-  "adversarial-review": "Gemini 3.5 Flash (High)",
-  rescue: "Gemini 3.5 Flash (Medium)",
+  setup: "Gemini 3.8 Flash (Medium)",
+  review: "Gemini 3.8 Flash (Medium)",
+  "adversarial-review": "Gemini 3.8 Flash (High)",
+  rescue: "Gemini 3.8 Flash (Medium)",
   deep: "Gemini 3.1 Pro (High)"
 };
 
@@ -38,19 +41,26 @@ function usage() {
   ].join("\n"));
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const options = {};
   const positionals = [];
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
+    if (value === "--") {
+      positionals.push(...argv.slice(index + 1));
+      break;
+    }
     if (!value.startsWith("--")) {
       positionals.push(value);
       continue;
     }
     const key = value.slice(2);
-    if (["json", "dry-run", "deep", "sandbox"].includes(key)) {
+    if (BOOLEAN_OPTIONS.has(key)) {
       options[key] = true;
       continue;
+    }
+    if (!VALUE_OPTIONS.has(key)) {
+      throw new Error(`Unknown option: --${key}`);
     }
     const next = argv[index + 1];
     if (next == null || next.startsWith("--")) {
@@ -60,6 +70,21 @@ function parseArgs(argv) {
     index += 1;
   }
   return { options, positionals };
+}
+
+export function validateCommandOptions(command, options, positionals = []) {
+  if (options.deep && options.model) throw new Error("Use either --deep or --model, not both.");
+  if (command === "setup") {
+    for (const key of Object.keys(options)) {
+      if (!SETUP_OPTIONS.has(key)) {
+        throw new Error(`Option --${key} is not valid for setup.`);
+      }
+    }
+    if (positionals.length > 0) {
+      throw new Error("Setup does not accept positional arguments.");
+    }
+    return;
+  }
 }
 
 export function parseDuration(value) {
@@ -84,23 +109,26 @@ function compact(value) {
   return String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-function normalizeModel(model, command, deep) {
+export function normalizeModel(model, command, deep) {
   if (!model) {
     return deep ? DEFAULT_MODELS.deep : DEFAULT_MODELS[command];
   }
   const value = compact(model);
   const aliases = new Map([
+    ["gemini-3-5-flash-medium", "Gemini 3.5 Flash (Medium)"],
+    ["gemini-3-5-flash-high", "Gemini 3.5 Flash (High)"],
+    ["gemini-3-5-flash-low", "Gemini 3.5 Flash (Low)"],
     ["flash", DEFAULT_MODELS.review],
     ["flash-medium", DEFAULT_MODELS.review],
     ["gemini-flash", DEFAULT_MODELS.review],
     ["gemini-flash-medium", DEFAULT_MODELS.review],
-    ["gemini-3-5-flash-medium", DEFAULT_MODELS.review],
-    ["flash-high", "Gemini 3.5 Flash (High)"],
-    ["gemini-flash-high", "Gemini 3.5 Flash (High)"],
-    ["gemini-3-5-flash-high", "Gemini 3.5 Flash (High)"],
-    ["flash-low", "Gemini 3.5 Flash (Low)"],
-    ["gemini-flash-low", "Gemini 3.5 Flash (Low)"],
-    ["gemini-3-5-flash-low", "Gemini 3.5 Flash (Low)"],
+    ["gemini-3-8-flash-medium", DEFAULT_MODELS.review],
+    ["flash-high", "Gemini 3.8 Flash (High)"],
+    ["gemini-flash-high", "Gemini 3.8 Flash (High)"],
+    ["gemini-3-8-flash-high", "Gemini 3.8 Flash (High)"],
+    ["flash-low", "Gemini 3.8 Flash (Low)"],
+    ["gemini-flash-low", "Gemini 3.8 Flash (Low)"],
+    ["gemini-3-8-flash-low", "Gemini 3.8 Flash (Low)"],
     ["pro", "Gemini 3.1 Pro (High)"],
     ["pro-high", "Gemini 3.1 Pro (High)"],
     ["gemini-pro", "Gemini 3.1 Pro (High)"],
@@ -176,14 +204,7 @@ export function commandReport(result, options = {}) {
   const stderr = outputText(result.stderr).trim();
   const spawnError = result.error instanceof Error ? result.error.message : "";
   const timedOut = result.error?.code === "ETIMEDOUT";
-  const providerFailed = result.status !== 0 || Boolean(spawnError);
-  let transcript = { conversationId: null, transcriptPath: null, result: "" };
-
-  if (!stdout && !providerFailed && !timedOut && options.transcriptLookup) {
-    transcript = options.transcriptLookup();
-  }
-
-  const review = stdout || outputText(transcript.result).trim();
+  const review = stdout;
   return {
     status: result.status,
     signal: result.signal,
@@ -192,116 +213,11 @@ export function commandReport(result, options = {}) {
     spawnError: spawnError || null,
     timeout: options.timeout ?? null,
     timedOut,
-    conversationId: transcript.conversationId ?? null,
-    transcriptPath: transcript.transcriptPath ?? null,
+    conversationId: null,
+    transcriptPath: null,
     success: result.status === 0 && !spawnError && !timedOut && review.length > 0,
     result: review
   };
-}
-
-function antigravityDataDir() {
-  const home = process.env.USERPROFILE || process.env.HOME || os.homedir();
-  return path.join(home, ".gemini", "antigravity-cli");
-}
-
-function listBrainIds(dataDir) {
-  const brainDir = path.join(dataDir, "brain");
-  if (!fs.existsSync(brainDir)) {
-    return [];
-  }
-  return fs.readdirSync(brainDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => {
-      const fullPath = path.join(brainDir, entry.name);
-      return { id: entry.name, mtimeMs: fs.statSync(fullPath).mtimeMs };
-    });
-}
-
-function readLastConversationForCwd(dataDir, cwd) {
-  const file = path.join(dataDir, "cache", "last_conversations.json");
-  if (!fs.existsSync(file)) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-    const normalizedCwd = path.resolve(cwd).toLowerCase();
-    let best = null;
-    for (const [key, value] of Object.entries(parsed)) {
-      const normalizedKey = path.resolve(key).toLowerCase();
-      if (normalizedCwd === normalizedKey) {
-        return typeof value === "string" ? value : null;
-      }
-      if (normalizedCwd.startsWith(`${normalizedKey}${path.sep}`)) {
-        if (!best || normalizedKey.length > best.length) {
-          best = { length: normalizedKey.length, value };
-        }
-      }
-    }
-    return best && typeof best.value === "string" ? best.value : null;
-  } catch {
-    return null;
-  }
-}
-
-function transcriptPath(dataDir, conversationId) {
-  return path.join(dataDir, "brain", conversationId, ".system_generated", "logs", "transcript.jsonl");
-}
-
-function extractFinalContent(file) {
-  if (!file || !fs.existsSync(file)) {
-    return "";
-  }
-  const lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
-  let result = "";
-  for (const line of lines) {
-    if (!line.trim()) {
-      continue;
-    }
-    try {
-      const event = JSON.parse(line);
-      if (event.source === "MODEL" && event.status === "DONE" && typeof event.content === "string" && event.content.trim()) {
-        result = event.content;
-      }
-    } catch {
-      continue;
-    }
-  }
-  return result;
-}
-
-function sleep(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
-export function findConversationResult(dataDir, cwd, beforeIds, startMs, deadlineMs, options = {}) {
-  const now = options.now ?? Date.now;
-  const listBrainIdsForLookup = options.listBrainIds ?? listBrainIds;
-  const sleepForLookup = options.sleep ?? sleep;
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (now() >= deadlineMs) {
-      break;
-    }
-    const after = listBrainIdsForLookup(dataDir);
-    const newItems = after.filter((item) => !beforeIds.has(item.id)).sort((a, b) => b.mtimeMs - a.mtimeMs);
-    const candidates = [
-      ...newItems.map((item) => item.id),
-      readLastConversationForCwd(dataDir, cwd),
-      ...after.filter((item) => item.mtimeMs >= startMs - 1000).sort((a, b) => b.mtimeMs - a.mtimeMs).map((item) => item.id)
-    ].filter(Boolean);
-    for (const id of candidates) {
-      const file = transcriptPath(dataDir, id);
-      const result = extractFinalContent(file);
-      if (result.trim()) {
-        return { conversationId: id, transcriptPath: file, result };
-      }
-    }
-    const remainingMs = deadlineMs - now();
-    if (remainingMs <= 0) {
-      break;
-    }
-    sleepForLookup(Math.min(250, remainingMs));
-  }
-  return { conversationId: null, transcriptPath: null, result: "" };
 }
 
 function printOutput(payload, asJson) {
@@ -318,6 +234,7 @@ function printOutput(payload, asJson) {
 }
 
 function runAgyPrompt({ command, cwd, prompt, model, outputDir, timeout, sandbox }) {
+  const timeoutMs = parseDuration(timeout);
   ensureDirectory(outputDir);
   const promptFile = path.join(outputDir, `${command}.prompt.md`);
   const stdoutFile = path.join(outputDir, `${command}.stdout.txt`);
@@ -327,10 +244,6 @@ function runAgyPrompt({ command, cwd, prompt, model, outputDir, timeout, sandbox
   const metadataFile = path.join(outputDir, `${command}.metadata.json`);
   fs.writeFileSync(promptFile, prompt, "utf8");
 
-  const dataDir = antigravityDataDir();
-  const beforeIds = new Set(listBrainIds(dataDir).map((item) => item.id));
-  const startMs = Date.now();
-  const timeoutMs = parseDuration(timeout);
   const args = ["--log-file", logFile, "--model", model, "--print-timeout", timeout];
   if (sandbox) {
     args.push("--sandbox");
@@ -341,10 +254,7 @@ function runAgyPrompt({ command, cwd, prompt, model, outputDir, timeout, sandbox
   const stderr = outputText(agy.stderr);
   fs.writeFileSync(stdoutFile, stdout, "utf8");
   fs.writeFileSync(stderrFile, stderr, "utf8");
-  const report = commandReport(agy, {
-    timeout,
-    transcriptLookup: () => findConversationResult(dataDir, cwd, beforeIds, startMs, startMs + timeoutMs)
-  });
+  const report = commandReport(agy, { timeout });
   fs.writeFileSync(mdFile, report.result, "utf8");
   const metadata = {
     command,
@@ -354,6 +264,7 @@ function runAgyPrompt({ command, cwd, prompt, model, outputDir, timeout, sandbox
     spawnError: report.spawnError,
     timeout: report.timeout,
     timedOut: report.timedOut,
+    success: report.success,
     conversationId: report.conversationId,
     transcriptPath: report.transcriptPath,
     stdoutFile,
@@ -372,36 +283,37 @@ function runAgyPrompt({ command, cwd, prompt, model, outputDir, timeout, sandbox
   };
 }
 
-function handleSetup(options) {
+export function runSetupCheck(options = {}, dependencies = {}) {
   const cwd = path.resolve(options.cwd ?? process.cwd());
-  const timeout = options["print-timeout"] ?? "1m0s";
+  const timeout = String(options["print-timeout"] ?? "1m0s").trim();
+  const timeoutMs = parseDuration(timeout);
   const model = normalizeModel(options.model, "setup", Boolean(options.deep));
-  const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), "antigravity-bridge-setup-"));
-  const version = run("agy", ["--version"], { cwd });
-  const smoke = runAgyPrompt({
-    command: "setup",
-    cwd,
-    prompt: "Return a short acknowledgement.",
-    model,
-    outputDir,
-    timeout,
-    sandbox: Boolean(options.sandbox)
-  });
-  const ready = version.status === 0 && smoke.success;
-  printOutput({
-    ready,
-    model,
-    version: {
-      status: version.status,
-      stdout: outputText(version.stdout).trim(),
-      stderr: outputText(version.stderr).trim()
-    },
-    smoke,
-    result: ready ? "Antigravity Bridge setup check passed." : "Antigravity Bridge setup check failed."
-  }, Boolean(options.json));
-  if (!ready) {
-    process.exitCode = 1;
+  const now = dependencies.now ?? Date.now;
+  const execute = dependencies.run ?? run;
+  const executePrompt = dependencies.runPrompt ?? ((parameters) => runAgyPrompt({
+    ...parameters,
+    outputDir: fs.mkdtempSync(path.join(os.tmpdir(), "antigravity-bridge-setup-"))
+  }));
+  const deadline = now() + timeoutMs;
+  const version = execute("agy", ["--version"], { cwd, timeoutMs });
+  const remainingMs = deadline - now();
+  const versionReport = commandReport(version);
+  if (version.status !== 0 || version.error || remainingMs <= 0) {
+    return { ready: false, model, timeout, version: versionReport, smoke: {
+      skipped: true, reason: remainingMs <= 0 ? "Setup deadline exhausted." : "Version probe failed."
+    } };
   }
+  const smoke = executePrompt({
+    command: "setup", cwd, prompt: "Return a short acknowledgement.", model,
+    timeout: `${remainingMs}ms`, sandbox: Boolean(options.sandbox)
+  });
+  return { ready: smoke.success && now() <= deadline, model, timeout, version: versionReport, smoke };
+}
+
+function handleSetup(options) {
+  const payload = runSetupCheck(options);
+  printOutput({ ...payload, result: payload.ready ? "Antigravity Bridge setup check passed." : "Antigravity Bridge setup check failed." }, Boolean(options.json));
+  if (!payload.ready) process.exitCode = 1;
 }
 
 function handleAgyCommand(command, options, positionals) {
@@ -410,7 +322,8 @@ function handleAgyCommand(command, options, positionals) {
   const userFocus = positionals.join(" ").trim() || "No extra focus provided.";
   const language = options.language ?? "Korean unless the user requested another language";
   const model = normalizeModel(options.model, command, Boolean(options.deep));
-  const timeout = options["print-timeout"] ?? "5m0s";
+  const timeout = String(options["print-timeout"] ?? "5m0s").trim();
+  parseDuration(timeout);
   const outputDir = path.resolve(
     cwd,
     options["output-dir"] ?? path.join(".codex", "antigravity-bridge", `run-${timestamp()}`)
@@ -458,6 +371,11 @@ function main() {
     throw new Error(`Unknown command: ${command}`);
   }
   const { options, positionals } = parseArgs(argv);
+  if (options.help) {
+    usage();
+    return;
+  }
+  validateCommandOptions(command, options, positionals);
   if (command === "setup") {
     handleSetup(options);
     return;

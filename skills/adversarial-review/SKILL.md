@@ -24,7 +24,7 @@ Use static file and line inspection only by default. `setup` remains available a
 
 ## Model Selection
 
-- Use `Gemini 3.5 Flash (High)` for routine adversarial review.
+- Use `Gemini 3.8 Flash (High)` for routine adversarial review.
 - Use `Gemini 3.1 Pro (High)` with `--deep` only with explicit user intent for a deeper review.
 - Use `Claude Opus 4.6 (Thinking)`, `GPT-OSS 120B (Medium)`, or any additional provider only with explicit user intent.
 
