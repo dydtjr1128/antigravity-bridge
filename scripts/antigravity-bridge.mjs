@@ -331,7 +331,8 @@ function handleAgyCommand(command, options, positionals) {
   const prompt = renderPrompt(loadPrompt(command), {
     SCOPE: scope,
     USER_FOCUS: userFocus,
-    LANGUAGE: language
+    LANGUAGE: language,
+    TIMEOUT: timeout
   });
 
   if (options["dry-run"]) {

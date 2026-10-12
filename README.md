@@ -119,7 +119,7 @@ node .\scripts\antigravity-bridge.mjs rescue --scope "the failing parser test"
 
 The helper normalizes model names, stores prompts/logs/results, and keeps reviewer prompts consistent.
 
-Use `--print-timeout <duration>` to set both the timeout passed to `agy --print-timeout` and the process-level hard timeout. The default for review-oriented commands is `5m0s`. A timed-out run fails without a retry, preserves any partial stdout, and records `timeout` and `timedOut` in its metadata.
+Use `--print-timeout <duration>` to set both the timeout passed to `agy --print-timeout` and the process-level hard timeout. The default for review-oriented commands is `5m0s`. An explicit duration replaces the default in both the hard process limit and the rendered provider prompt; for example, `review --print-timeout 15m0s` allows fifteen minutes for one attempt. A timed-out run fails without a retry, preserves any partial stdout, and records `timeout` and `timedOut` in its metadata.
 
 Setup uses one one-minute deadline across version and smoke probes; `--print-timeout` overrides it. A failed version probe or exhausted budget skips smoke. Unknown options, unsupported setup options, and conflicting `--deep` / `--model` are rejected before execution.
 
@@ -158,7 +158,7 @@ When the user explicitly requests model executable validation, smoke-test a labe
 node .\scripts\antigravity-bridge.mjs setup --model "Gemini 3.8 Flash (Medium)" --json
 ```
 
-The Flash defaults match the `agy models` catalog observed on 2026-09-23. Explicit `gemini-3-5-flash-*` aliases retain their previous labels; availability depends on the provider. Claude labels remain at the versions listed by Antigravity and are independent of Claude Bridge model IDs.
+The Flash defaults match the `agy models` catalog rechecked on 2026-10-12. Explicit `gemini-3-5-flash-*` aliases retain their previous labels; availability depends on the provider. Claude labels remain at the versions listed by Antigravity and are independent of Claude Bridge model IDs.
 
 ## Safety Rules
 
@@ -168,7 +168,7 @@ Review and adversarial-review runs are read-only. All three modes enforce this c
 
 Do not execute project code or validation commands unless the user explicitly and directly requests that execution. This includes tests, builds, package managers, scripts, servers, applications, CI, deployment, release, and workflow automation. A review or investigation request alone is not permission to execute them.
 Read-only repository inspection commands required to obtain the requested scope are allowed, including `git diff`, `git status`, `git show`, `git log`, `git blame`, and `git ls-files`. Shell commands must not be used for any other purpose or modify files, the index, refs, configuration, or other repository state.
-Complete one bounded pass within five minutes.
+Complete one bounded pass within the helper-selected timeout, including any explicit `--print-timeout` override.
 Do not retry, add reviewers, expand the scope, or switch to a deeper model automatically.
 If the available time or evidence is insufficient, return the supported findings and state the remaining gap.
 

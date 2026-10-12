@@ -145,7 +145,6 @@ const boundedPolicy = [
   "Read-only repository inspection commands required to obtain the requested scope are allowed, including `git diff`, `git status`, `git show`, `git log`, `git blame`, and `git ls-files`.",
   "When the scope is current uncommitted work, include staged, unstaged, and untracked files; enumerate them with read-only Git inspection before reviewing only those changes.",
   "Do not use shell commands for any other purpose, and do not run commands that modify files, the index, refs, configuration, or other repository state.",
-  "Complete one bounded pass within five minutes.",
   "Do not retry, add reviewers, expand the scope, or switch to a deeper model automatically.",
   "If the available time or evidence is insufficient, return the supported findings and state the remaining gap.",
   "Start with the exact diff or named files in scope and inspect only directly relevant dependencies needed to support a concrete finding.",
@@ -164,6 +163,7 @@ test("review prompts enforce one bounded non-executing pass", () => {
       assert.match(text, exactSentence(sentence));
     }
     assert.doesNotMatch(text, /lightweight local commands/i);
+    assert.match(text, text.includes("{{TIMEOUT}}") ? /selected hard timeout/ : /helper-selected timeout/);
   }
 });
 
@@ -176,6 +176,7 @@ test("skills limit preflight and verification to explicit, static actions", () =
     assert.match(text, /static file and line inspection/i);
     assert.match(text, /setup/i);
     assert.doesNotMatch(text, /lightweight local commands/i);
+    assert.match(text, text.includes("{{TIMEOUT}}") ? /selected hard timeout/ : /helper-selected timeout/);
   }
 
   const readme = readFileSync(path.join(ROOT_DIR, "README.md"), "utf8");
@@ -282,4 +283,20 @@ test("CLI dry-run validates timeout and emits the selected model", () => {
   const typo = invoke("review", "--dry-run", "--print-timout", "30s");
   assert.equal(typo.status, 1);
   assert.match(typo.stderr, /Unknown option/);
+});
+
+
+test("Antigravity explicit timeouts replace the default in every mode prompt", () => {
+  for (const command of ["review", "adversarial-review", "rescue"]) {
+    for (const timeout of [undefined, "30s", "15m0s"]) {
+      const args = [BRIDGE_SCRIPT, command, "--dry-run", "--json"];
+      if (timeout) args.push("--print-timeout", timeout);
+      const result = spawnSync(process.execPath, args, { encoding: "utf8", timeout: 10000 });
+      assert.equal(result.status, 0, result.stderr);
+      const payload = JSON.parse(result.stdout);
+      assert.equal(payload.timeout, timeout ?? "5m0s");
+      assert.ok(payload.prompt.includes(`selected hard timeout (${timeout ?? "5m0s"})`));
+      assert.doesNotMatch(payload.prompt, /\{\{TIMEOUT\}\}|within five minutes/);
+    }
+  }
 });
